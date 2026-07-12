@@ -193,7 +193,20 @@ export default function App() {
   }
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (err) {
+      console.warn('SignOut server call failed:', err);
+    } finally {
+      setSession(false);
+      try {
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('sb-'))
+          .forEach((key) => localStorage.removeItem(key));
+      } catch (err) {
+        console.warn('localStorage cleanup failed:', err);
+      }
+    }
   }
 
   const filteredPhotos = photos.filter((p) => {
