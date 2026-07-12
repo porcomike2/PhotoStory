@@ -1,26 +1,43 @@
-import { MapPin, Calendar, Trash2 } from 'lucide-react';
+import { MapPin, Calendar, Trash2, Check } from 'lucide-react';
 import type { Photo } from '../services/supabaseClient';
 
 type PhotoCardProps = {
   photo: Photo;
   onDelete?: (id: string) => void;
   onOpen?: (photo: Photo) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 };
 
-export default function PhotoCard({ photo, onDelete, onOpen }: PhotoCardProps) {
+export default function PhotoCard({ photo, onDelete, onOpen, selectionMode, selected, onToggleSelect }: PhotoCardProps) {
   return (
-    <div className="group relative bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-neutral-700 transition-all duration-300 hover:shadow-2xl hover:shadow-black/40">
+    <div
+      className={`group relative bg-neutral-900 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:shadow-black/40 ${
+        selected ? 'border-white ring-2 ring-white/30' : 'border-neutral-800 hover:border-neutral-700'
+      }`}
+    >
       <div
-        className="relative aspect-[4/3] overflow-hidden bg-neutral-800 cursor-pointer"
-        onClick={() => onOpen?.(photo)}
+        className="relative aspect-[4/3] overflow-hidden bg-neutral-800"
+        onClick={() => (selectionMode ? onToggleSelect?.(photo.id) : onOpen?.(photo))}
+        style={{ cursor: selectionMode ? 'pointer' : 'zoom-in' }}
       >
         <img
           src={photo.storage_url}
           alt={photo.title}
           loading="lazy"
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className={`w-full h-full object-cover transition-transform duration-500 ${
+            selectionMode ? 'group-hover:scale-100' : 'group-hover:scale-105'
+          } ${selected ? 'opacity-70' : ''}`}
         />
-        {onDelete && (
+
+        {selectionMode && (
+          <div className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${selected ? 'bg-white border-white' : 'bg-black/50 border-white/70 backdrop-blur-sm'}`}>
+            {selected && <Check size={14} className="text-black" />}
+          </div>
+        )}
+
+        {!selectionMode && onDelete && (
           <button
             onClick={(e) => {
               e.stopPropagation();

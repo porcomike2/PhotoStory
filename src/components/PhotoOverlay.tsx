@@ -22,7 +22,7 @@ import { supabase } from '../services/supabaseClient';
 type PhotoOverlayProps = {
   photo: Photo;
   onClose: () => void;
-  onUpdated: () => void;
+  onUpdated: (updatedPhoto: Photo) => void;
 };
 
 export default function PhotoOverlay({ photo, onClose, onUpdated }: PhotoOverlayProps) {
@@ -153,7 +153,7 @@ function ZoomControls() {
   );
 }
 
-function EditModal({ photo, onClose, onSaved }: { photo: Photo; onClose: () => void; onSaved: () => void }) {
+function EditModal({ photo, onClose, onSaved }: { photo: Photo; onClose: () => void; onSaved: (updated: Photo) => void }) {
   const [title, setTitle] = useState(photo.title);
   const [photoDate, setPhotoDate] = useState(toInputDate(photo.photo_date));
   const [location, setLocation] = useState(photo.location || '');
@@ -191,7 +191,13 @@ function EditModal({ photo, onClose, onSaved }: { photo: Photo; onClose: () => v
         return;
       }
 
-      onSaved();
+      onSaved({
+        ...photo,
+        title: title.trim(),
+        photo_date: new Date(photoDate).toISOString(),
+        location: location.trim() || null,
+        story: story.trim() || null,
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');

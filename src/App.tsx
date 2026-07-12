@@ -12,26 +12,42 @@ import {
   Calendar,
   MapPin,
   FileText,
+  CheckSquare,
+  X,
+  BookOpen,
+  Images,
+  FileDown,
 } from 'lucide-react';
-import { supabase, type Photo } from './services/supabaseClient';
+import { supabase, type Photo, type Story } from './services/supabaseClient';
 import Auth from './components/Auth';
 import PhotoForm from './components/PhotoForm';
 import PhotoCard from './components/PhotoCard';
 import PhotoOverlay from './components/PhotoOverlay';
 import InstallPrompt from './components/InstallPrompt';
+import StoriesView from './components/StoriesView';
+import StoryCarousel from './components/StoryCarousel';
+import AddToStoryModal from './components/AddToStoryModal';
+import PdfExportModal from './components/PdfExportModal';
 
 type ViewMode = 'grid' | 'timeline';
+type TabMode = 'photos' | 'stories';
 
 export default function App() {
   const [session, setSession] = useState<boolean | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [tabMode, setTabMode] = useState<TabMode>('photos');
   const [search, setSearch] = useState('');
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [overlayPhoto, setOverlayPhoto] = useState<Photo | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addToStoryOpen, setAddToStoryOpen] = useState(false);
+  const [pdfExportOpen, setPdfExportOpen] = useState(false);
+  const [carouselStory, setCarouselStory] = useState<{ story: Story; photos: Photo[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -112,6 +128,36 @@ export default function App() {
     setPhotos(photos.filter((p) => p.id !== id));
   }
 
+  function handleOverlayUpdated(updatedPhoto: Photo) {
+    setPhotos((prev) => prev.map((p) => (p.id === updatedPhoto.id ? updatedPhoto : p)));
+    setOverlayPhoto(updatedPhoto);
+  }
+
+  function handleToggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function handleSelectAll() {
+    if (selectedIds.size === filteredPhotos.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPhotos.map((p) => p.id)));
+    }
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }
+
   function handleExport() {
     const exportData = photos.map((p) => ({
       id: p.id,
@@ -148,6 +194,8 @@ export default function App() {
     );
   });
 
+  const selectedPhotos = photos.filter((p) => selectedIds.has(p.id));
+
   if (session === null) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
@@ -178,7 +226,7 @@ export default function App() {
                 onClick={handleExport}
                 disabled={photos.length === 0}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Exporter mes souvenirs"
+                title="Exporter mes souvenirs (JSON)"
               >
                 <Download size={18} />
                 <span className="hidden sm:inline">Exporter</span>
@@ -193,45 +241,122 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher par titre, lieu, ou histoire..."
-                className="w-full pl-10 pr-4 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-600 transition-all"
-              />
-            </div>
-
+          {/* Tab selector */}
+          <div className="flex items-center gap-3 mb-3">
             <div className="flex gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl">
               <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-all ${
-                  viewMode === 'grid' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
+                onClick={() => { setTabMode('photos'); exitSelectionMode(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  tabMode === 'photos' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
                 }`}
-                title="Vue grille"
               >
-                <Grid3x3 size={18} />
+                <Images size={16} /> Toutes les photos
               </button>
               <button
-                onClick={() => setViewMode('timeline')}
-                className={`p-2 rounded-lg transition-all ${
-                  viewMode === 'timeline' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
+                onClick={() => { setTabMode('stories'); exitSelectionMode(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  tabMode === 'stories' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
                 }`}
-                title="Vue timeline"
               >
-                <List size={18} />
+                <BookOpen size={16} /> Stories
+              </button>
+            </div>
+          </div>
+
+          {tabMode === 'photos' && (
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Rechercher par titre, lieu, ou histoire..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-600 transition-all"
+                />
+              </div>
+
+              <div className="flex gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-all ${
+                    viewMode === 'grid' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Vue grille"
+                >
+                  <Grid3x3 size={18} />
+                </button>
+                <button
+                  onClick={() => setViewMode('timeline')}
+                  className={`p-2 rounded-lg transition-all ${
+                    viewMode === 'timeline' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Vue timeline"
+                >
+                  <List size={18} />
+                </button>
+              </div>
+
+              {!selectionMode ? (
+                <button
+                  onClick={() => setSelectionMode(true)}
+                  disabled={photos.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-neutral-300 hover:text-white bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                  title="Mode selection"
+                >
+                  <CheckSquare size={18} />
+                  <span className="hidden sm:inline">Selectionner</span>
+                </button>
+              ) : (
+                <button
+                  onClick={exitSelectionMode}
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-neutral-300 hover:text-white bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 rounded-xl transition-all whitespace-nowrap"
+                >
+                  <X size={18} />
+                  <span className="hidden sm:inline">Annuler</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Bulk actions bar */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="sticky top-[73px] sm:top-[81px] z-20 bg-neutral-900/95 backdrop-blur-xl border-b border-neutral-800 animate-fadeIn">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
+            <span className="text-sm text-neutral-300">
+              {selectedIds.size} selectionnee{selectedIds.size > 1 ? 's' : ''}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap"
+              >
+                {selectedIds.size === filteredPhotos.length ? 'Tout deselect.' : 'Tout selectionner'}
+              </button>
+              <button
+                onClick={() => setAddToStoryOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-black bg-white rounded-lg font-medium hover:bg-neutral-200 transition-all whitespace-nowrap"
+              >
+                <BookOpen size={14} /> Ajouter a une story
+              </button>
+              <button
+                onClick={() => setPdfExportOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap"
+              >
+                <FileDown size={14} /> Export PDF
               </button>
             </div>
           </div>
         </div>
-      </header>
+      )}
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        {loading ? (
+        {tabMode === 'stories' ? (
+          <StoriesView onOpenCarousel={(story, storyPhotos) => setCarouselStory({ story, photos: storyPhotos })} />
+        ) : loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="animate-spin text-neutral-600" size={32} />
           </div>
@@ -240,16 +365,31 @@ export default function App() {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredPhotos.map((photo) => (
-              <PhotoCard key={photo.id} photo={photo} onDelete={handleDelete} onOpen={setOverlayPhoto} />
+              <PhotoCard
+                key={photo.id}
+                photo={photo}
+                onDelete={handleDelete}
+                onOpen={setOverlayPhoto}
+                selectionMode={selectionMode}
+                selected={selectedIds.has(photo.id)}
+                onToggleSelect={handleToggleSelect}
+              />
             ))}
           </div>
         ) : (
-          <TimelineView photos={filteredPhotos} onDelete={handleDelete} onOpen={setOverlayPhoto} />
+          <TimelineView
+            photos={filteredPhotos}
+            onDelete={handleDelete}
+            onOpen={setOverlayPhoto}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+          />
         )}
       </main>
 
-      {/* Floating Action Buttons */}
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-20">
+      {/* Floating Action Buttons - moved up for better ergonomics */}
+      <div className="fixed bottom-20 sm:bottom-6 right-6 flex flex-col gap-3 z-20">
         <input
           ref={cameraInputRef}
           type="file"
@@ -295,8 +435,35 @@ export default function App() {
         <PhotoOverlay
           photo={overlayPhoto}
           onClose={() => setOverlayPhoto(null)}
-          onUpdated={fetchPhotos}
+          onUpdated={handleOverlayUpdated}
         />
+      )}
+
+      {/* Story Carousel */}
+      {carouselStory && (
+        <StoryCarousel
+          photos={carouselStory.photos}
+          storyTitle={carouselStory.story.title}
+          storyDescription={carouselStory.story.description}
+          onClose={() => setCarouselStory(null)}
+        />
+      )}
+
+      {/* Add to Story Modal */}
+      {addToStoryOpen && (
+        <AddToStoryModal
+          photoIds={Array.from(selectedIds)}
+          onClose={() => setAddToStoryOpen(false)}
+          onAdded={() => {
+            setAddToStoryOpen(false);
+            exitSelectionMode();
+          }}
+        />
+      )}
+
+      {/* PDF Export Modal */}
+      {pdfExportOpen && (
+        <PdfExportModal photos={selectedPhotos} onClose={() => setPdfExportOpen(false)} />
       )}
 
       {/* PWA Install Prompt */}
@@ -333,68 +500,86 @@ function EmptyState({ onUpload, onCapture }: { onUpload: () => void; onCapture: 
   );
 }
 
-function TimelineView({ photos, onDelete, onOpen }: { photos: Photo[]; onDelete: (id: string) => void; onOpen: (photo: Photo) => void }) {
+type TimelineViewProps = {
+  photos: Photo[];
+  onDelete: (id: string) => void;
+  onOpen: (photo: Photo) => void;
+  selectionMode?: boolean;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+};
+
+function TimelineView({ photos, onDelete, onOpen, selectionMode, selectedIds, onToggleSelect }: TimelineViewProps) {
   return (
     <div className="relative">
-      {/* Vertical line */}
       <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-px bg-neutral-800" />
 
       <div className="space-y-8">
-        {photos.map((photo) => (
-          <div key={photo.id} className="relative pl-12 sm:pl-16">
-            {/* Dot */}
-            <div className="absolute left-3 sm:left-5 top-2 w-3 h-3 bg-white rounded-full ring-4 ring-neutral-950" />
+        {photos.map((photo) => {
+          const isSelected = selectedIds.has(photo.id);
+          return (
+            <div key={photo.id} className="relative pl-12 sm:pl-16">
+              <div className={`absolute left-3 sm:left-5 top-2 w-3 h-3 rounded-full ring-4 ring-neutral-950 ${isSelected ? 'bg-white' : 'bg-white'}`} />
 
-            <div className="group relative bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800 hover:border-neutral-700 transition-all duration-300">
-              <div className="flex flex-col sm:flex-row">
-                <div
-                  className="relative sm:w-56 h-40 sm:h-auto shrink-0 overflow-hidden bg-neutral-800 cursor-pointer"
-                  onClick={() => onOpen?.(photo)}
-                >
-                  <img
-                    src={photo.storage_url}
-                    alt={photo.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                  {onDelete && (
-                    <button
-                      onClick={() => onDelete(photo.id)}
-                      className="absolute top-2 right-2 p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-red-400 transition-all sm:opacity-0 group-hover:opacity-100"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+              <div className={`group relative bg-neutral-900 rounded-2xl overflow-hidden border transition-all duration-300 ${isSelected ? 'border-white ring-2 ring-white/30' : 'border-neutral-800 hover:border-neutral-700'}`}>
+                <div className="flex flex-col sm:flex-row">
+                  <div
+                    className="relative sm:w-56 h-40 sm:h-auto shrink-0 overflow-hidden bg-neutral-800"
+                    onClick={() => (selectionMode ? onToggleSelect(photo.id) : onOpen?.(photo))}
+                    style={{ cursor: selectionMode ? 'pointer' : 'zoom-in' }}
+                  >
+                    <img
+                      src={photo.storage_url}
+                      alt={photo.title}
+                      loading="lazy"
+                      className={`w-full h-full object-cover ${isSelected ? 'opacity-70' : ''}`}
+                    />
 
-                <div className="flex-1 p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-neutral-500 uppercase tracking-wide font-medium">
-                    <Calendar size={13} />
-                    {formatDate(photo.photo_date)}
+                    {selectionMode && (
+                      <div className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-white border-white' : 'bg-black/50 border-white/70 backdrop-blur-sm'}`}>
+                        {isSelected && <CheckSquare size={14} className="text-black" />}
+                      </div>
+                    )}
+
+                    {!selectionMode && onDelete && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
+                        className="absolute top-2 right-2 p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-red-400 transition-all sm:opacity-0 group-hover:opacity-100"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
 
-                  <h3 className="text-lg font-semibold text-white leading-snug">{photo.title}</h3>
-
-                  {photo.location && (
-                    <div className="flex items-center gap-1.5 text-sm text-neutral-400">
-                      <MapPin size={14} className="shrink-0" />
-                      <span className="line-clamp-1">{photo.location}</span>
+                  <div className="flex-1 p-5 space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-neutral-500 uppercase tracking-wide font-medium">
+                      <Calendar size={13} />
+                      {formatDate(photo.photo_date)}
                     </div>
-                  )}
 
-                  {photo.story && (
-                    <div className="flex items-start gap-1.5 text-sm text-neutral-500 leading-relaxed pt-1">
-                      <FileText size={14} className="shrink-0 mt-0.5" />
-                      <p className="line-clamp-4">{photo.story}</p>
-                    </div>
-                  )}
+                    <h3 className="text-lg font-semibold text-white leading-snug">{photo.title}</h3>
+
+                    {photo.location && (
+                      <div className="flex items-center gap-1.5 text-sm text-neutral-400">
+                        <MapPin size={14} className="shrink-0" />
+                        <span className="line-clamp-1">{photo.location}</span>
+                      </div>
+                    )}
+
+                    {photo.story && (
+                      <div className="flex items-start gap-1.5 text-sm text-neutral-500 leading-relaxed pt-1">
+                        <FileText size={14} className="shrink-0 mt-0.5" />
+                        <p className="line-clamp-4">{photo.story}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -28,3 +28,19 @@ export type Photo = {
   gps_lng: number | null;
   created_at: string;
 };
+
+export type Story = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  created_at: string;
+};
+
+export type PhotoStory = {
+  id: string;
+  story_id: string;
+  photo_id: string;
+  position: number;
+  created_at: string;
+};
