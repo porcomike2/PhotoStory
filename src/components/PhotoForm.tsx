@@ -126,6 +126,7 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
       });
 
       if (insertError) {
+        await supabase.storage.from('photos').remove([fileName]);
         setError(`Erreur d'enregistrement: ${insertError.message}`);
         setLoading(false);
         return;

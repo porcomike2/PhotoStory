@@ -47,6 +47,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addToStoryOpen, setAddToStoryOpen] = useState(false);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [carouselStory, setCarouselStory] = useState<{ story: Story; photos: Photo[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -119,13 +120,24 @@ export default function App() {
     const photo = photos.find((p) => p.id === id);
     if (!photo) return;
 
+    const confirmed = window.confirm(
+      `Voulez-vous vraiment supprimer "${photo.title}" ? Cette action est irreversible.`
+    );
+    if (!confirmed) return;
+
+    const { error: deleteError } = await supabase.from('photos').delete().eq('id', id);
+
+    if (deleteError) {
+      setDeleteError(`Erreur lors de la suppression: ${deleteError.message}`);
+      return;
+    }
+
     const filePath = photo.storage_url.split('/photos/')[1];
     if (filePath) {
       await supabase.storage.from('photos').remove([filePath]);
     }
 
-    await supabase.from('photos').delete().eq('id', id);
-    setPhotos(photos.filter((p) => p.id !== id));
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
   }
 
   function handleOverlayUpdated(updatedPhoto: Photo) {
@@ -354,6 +366,17 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        {deleteError && (
+          <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between gap-3 animate-fadeIn">
+            <p className="text-sm text-red-400">{deleteError}</p>
+            <button
+              onClick={() => setDeleteError(null)}
+              className="text-red-400 hover:text-red-300 transition-colors shrink-0"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
         {tabMode === 'stories' ? (
           <StoriesView onOpenCarousel={(story, storyPhotos) => setCarouselStory({ story, photos: storyPhotos })} />
         ) : loading ? (

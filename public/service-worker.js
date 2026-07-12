@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photostory-v1';
+const CACHE_NAME = '__SW_CACHE_VERSION__';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
