@@ -18,6 +18,7 @@ import Auth from './components/Auth';
 import PhotoForm from './components/PhotoForm';
 import PhotoCard from './components/PhotoCard';
 import PhotoOverlay from './components/PhotoOverlay';
+import InstallPrompt from './components/InstallPrompt';
 
 type ViewMode = 'grid' | 'timeline';
 
@@ -297,6 +298,9 @@ export default function App() {
           onUpdated={fetchPhotos}
         />
       )}
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 }

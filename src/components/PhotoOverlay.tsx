@@ -54,17 +54,17 @@ export default function PhotoOverlay({ photo, onClose, onUpdated }: PhotoOverlay
         <TransformWrapper
           initialScale={1}
           minScale={1}
-          maxScale={5}
+          maxScale={4}
           wheel={{ step: 0.1 }}
           pinch={{ step: 5 }}
+          doubleClick={{ mode: 'zoomIn', step: 2 }}
           limitToBounds={true}
           centerOnInit={true}
-          doubleClick={{ mode: 'zoomIn', step: 2.5 }}
         >
           <ZoomControls />
           <TransformComponent
-            wrapperClass="!w-full !h-full flex items-center justify-center"
-            contentClass="!w-full !h-full flex items-center justify-center"
+            wrapperClass="!w-full !h-full !overflow-hidden flex items-center justify-center"
+            contentClass="!w-full !h-full !overflow-hidden flex items-center justify-center"
           >
             <img
               src={photo.storage_url}
