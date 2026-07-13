@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { Photo } from '../services/supabaseClient';
 import { supabase } from '../services/supabaseClient';
+import { formatDateLongWithTime, formatDateForInput } from '../utils/date';
 
 type PhotoOverlayProps = {
   photo: Photo;
@@ -92,7 +93,7 @@ export default function PhotoOverlay({ photo, onClose, onUpdated }: PhotoOverlay
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-neutral-400">
             <div className="flex items-center gap-1.5">
               <Calendar size={15} className="shrink-0" />
-              {formatDate(photo.photo_date)}
+              {formatDateLongWithTime(photo.photo_date)}
             </div>
             {photo.location && (
               <div className="flex items-center gap-1.5">
@@ -155,7 +156,7 @@ function ZoomControls() {
 
 function EditModal({ photo, onClose, onSaved }: { photo: Photo; onClose: () => void; onSaved: (updated: Photo) => void }) {
   const [title, setTitle] = useState(photo.title);
-  const [photoDate, setPhotoDate] = useState(toInputDate(photo.photo_date));
+  const [photoDate, setPhotoDate] = useState(formatDateForInput(photo.photo_date));
   const [location, setLocation] = useState(photo.location || '');
   const [story, setStory] = useState(photo.story || '');
   const [loading, setLoading] = useState(false);
@@ -293,23 +294,3 @@ function EditModal({ photo, onClose, onSaved }: { photo: Photo; onClose: () => v
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function toInputDate(iso: string): string {
-  const d = new Date(iso);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}

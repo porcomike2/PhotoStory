@@ -19,6 +19,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import { supabase, type Photo, type Story } from './services/supabaseClient';
+import { formatDateLong } from './utils/date';
 import Auth from './components/Auth';
 import PhotoForm from './components/PhotoForm';
 import PhotoCard from './components/PhotoCard';
@@ -592,7 +593,7 @@ function TimelineView({ photos, onDelete, onOpen, selectionMode, selectedIds, on
                   <div className="flex-1 p-5 space-y-2">
                     <div className="flex items-center gap-2 text-xs text-neutral-500 uppercase tracking-wide font-medium">
                       <Calendar size={13} />
-                      {formatDate(photo.photo_date)}
+                      {formatDateLong(photo.photo_date)}
                     </div>
 
                     <h3 className="text-lg font-semibold text-white leading-snug">{photo.title}</h3>
@@ -621,11 +622,3 @@ function TimelineView({ photos, onDelete, onOpen, selectionMode, selectedIds, on
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
