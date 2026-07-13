@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, MapPin, FileText } from 'lucide-react';
 import type { Photo } from '../services/supabaseClient';
+import { formatDateLongWithTime } from '../utils/date';
 
 type StoryCarouselProps = {
   photos: Photo[];
@@ -98,7 +99,7 @@ export default function StoryCarousel({ photos, storyTitle, storyDescription, on
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-neutral-400">
               <div className="flex items-center gap-1.5">
                 <Calendar size={14} className="shrink-0" />
-                {formatDate(photo.photo_date)}
+                {formatDateLongWithTime(photo.photo_date)}
               </div>
               {photo.location && (
                 <div className="flex items-center gap-1.5">
@@ -135,13 +136,3 @@ export default function StoryCarousel({ photos, storyTitle, storyDescription, on
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 // Inline plugin: injects a build-unique version into the service worker at build time.
 // Each build gets a different timestamp, so the SW cache name changes automatically,
@@ -12,7 +12,7 @@ function swVersionPlugin() {
 
   return {
     name: 'sw-cache-version',
-    configResolved(config) {
+    configResolved() {
       // Generate a unique version string for this build
       version = `photostory-${Date.now()}`;
     },

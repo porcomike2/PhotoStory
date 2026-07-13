@@ -1,5 +1,6 @@
 import { MapPin, Calendar, Trash2, Check } from 'lucide-react';
 import type { Photo } from '../services/supabaseClient';
+import { formatDateLong } from '../utils/date';
 
 type PhotoCardProps = {
   photo: Photo;
@@ -56,7 +57,7 @@ export default function PhotoCard({ photo, onDelete, onOpen, selectionMode, sele
 
         <div className="flex items-center gap-1.5 text-xs text-neutral-400">
           <Calendar size={13} className="shrink-0" />
-          <span>{formatDate(photo.photo_date)}</span>
+          <span>{formatDateLong(photo.photo_date)}</span>
         </div>
 
         {photo.location && (
@@ -74,11 +75,3 @@ export default function PhotoCard({ photo, onDelete, onOpen, selectionMode, sele
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
