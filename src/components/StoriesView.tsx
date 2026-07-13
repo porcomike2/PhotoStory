@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase, type Story, type Photo } from '../services/supabaseClient';
 import StoryCarousel from './StoryCarousel';
 import { BookOpen, Plus, X, Loader2, Images, Calendar } from 'lucide-react';
+import { formatDateLong } from '../utils/date';
 
 type StoriesViewProps = {
   onOpenCarousel?: (story: Story, photos: Photo[]) => void;
@@ -12,6 +13,7 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [activeStory, setActiveStory] = useState<{ story: Story; photos: Photo[] } | null>(null);
+  const [storyDataMap, setStoryDataMap] = useState<Map<string, { count: number; thumbnailUrl: string | null }>>(new Map());
 
   const fetchStories = useCallback(async () => {
     setLoading(true);
@@ -25,6 +27,36 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
         console.error('Error fetching stories:', error);
       } else {
         setStories(data || []);
+        
+        // Fetch grouped data for all stories
+        if (data && data.length > 0) {
+          const storyIds = data.map(s => s.id);
+          const { data: photoData } = await supabase
+            .from('photo_stories')
+            .select('story_id, photos(storage_url)')
+            .in('story_id', storyIds)
+            .order('position', { ascending: true });
+
+          const newDataMap = new Map<string, { count: number; thumbnailUrl: string | null }>();
+          photoData?.forEach((item: { story_id: string; photos: { storage_url: string } | { storage_url: string }[] }) => {
+            const current = newDataMap.get(item.story_id) || { count: 0, thumbnailUrl: null };
+            const photoObj = Array.isArray(item.photos) ? item.photos[0] : item.photos;
+            
+            newDataMap.set(item.story_id, {
+              count: current.count + 1,
+              thumbnailUrl: current.thumbnailUrl || photoObj?.storage_url || null
+            });
+          });
+          
+          // Ensure all stories have an entry (even with 0 photos)
+          data.forEach(story => {
+            if (!newDataMap.has(story.id)) {
+              newDataMap.set(story.id, { count: 0, thumbnailUrl: null });
+            }
+          });
+          
+          setStoryDataMap(newDataMap);
+        }
       }
     } finally {
       setLoading(false);
@@ -94,9 +126,18 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stories.map((story) => (
-              <StoryCard key={story.id} story={story} onOpen={() => openStory(story)} />
-            ))}
+            {stories.map((story) => {
+              const storyData = storyDataMap.get(story.id) || { count: 0, thumbnailUrl: null };
+              return (
+                <StoryCard 
+                  key={story.id} 
+                  story={story} 
+                  photoCount={storyData.count}
+                  thumbnail={storyData.thumbnailUrl}
+                  onOpen={() => openStory(story)} 
+                />
+              );
+            })}
           </div>
         </>
       )}
@@ -123,34 +164,12 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
   );
 }
 
-function StoryCard({ story, onOpen }: { story: Story; onOpen: () => void }) {
-  const [photoCount, setPhotoCount] = useState<number | null>(null);
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function load() {
-      const { count } = await supabase
-        .from('photo_stories')
-        .select('*', { count: 'exact', head: true })
-        .eq('story_id', story.id);
-      setPhotoCount(count ?? 0);
-
-      const { data } = await supabase
-        .from('photo_stories')
-        .select('photos(storage_url)')
-        .eq('story_id', story.id)
-        .order('position', { ascending: true })
-        .limit(1);
-
-      if (data && data.length > 0) {
-        const first = data[0] as { photos: { storage_url: string } | { storage_url: string }[] };
-        const photoObj = Array.isArray(first.photos) ? first.photos[0] : first.photos;
-        setThumbnail(photoObj?.storage_url ?? null);
-      }
-    }
-    load();
-  }, [story.id]);
-
+function StoryCard({ story, photoCount, thumbnail, onOpen }: { 
+  story: Story; 
+  photoCount: number; 
+  thumbnail: string | null;
+  onOpen: () => void 
+}) {
   return (
     <div
       onClick={onOpen}
@@ -180,9 +199,9 @@ function StoryCard({ story, onOpen }: { story: Story; onOpen: () => void }) {
       <div className="px-4 py-2.5 flex items-center justify-between text-xs text-neutral-500">
         <span className="flex items-center gap-1.5">
           <Calendar size={12} />
-          {formatDate(story.created_at)}
+          {formatDateLong(story.created_at)}
         </span>
-        <span>{photoCount ?? '...'} photo{(photoCount ?? 0) > 1 ? 's' : ''}</span>
+        <span>{photoCount} photo{photoCount > 1 ? 's' : ''}</span>
       </div>
     </div>
   );
@@ -287,7 +306,3 @@ function CreateStoryModal({ onClose, onCreated }: { onClose: () => void; onCreat
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-}
