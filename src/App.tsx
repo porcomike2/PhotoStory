@@ -17,6 +17,7 @@ import {
   BookOpen,
   Images,
   FileDown,
+  Trash2,
 } from 'lucide-react';
 import { supabase, type Photo, type Story } from './services/supabaseClient';
 import { formatDateLong } from './utils/date';
@@ -32,6 +33,16 @@ import PdfExportModal from './components/PdfExportModal';
 
 type ViewMode = 'grid' | 'timeline';
 type TabMode = 'photos' | 'stories';
+
+function extractStoragePath(storageUrl: string): string | null {
+  const publicPrefix = '/storage/v1/object/public/photos/';
+  const idx = storageUrl.indexOf(publicPrefix);
+  if (idx >= 0) {
+    return storageUrl.slice(idx + publicPrefix.length);
+  }
+  const parts = storageUrl.split('/photos/');
+  return parts.length > 1 ? parts[parts.length - 1] : null;
+}
 
 export default function App() {
   const [session, setSession] = useState<boolean | null>(null);
@@ -78,6 +89,7 @@ export default function App() {
 
       if (error) {
         console.error('Error fetching photos:', error);
+        setDeleteError(`Impossible de charger les photos: ${error.message}`);
       } else {
         setPhotos(data || []);
       }
@@ -97,6 +109,15 @@ export default function App() {
 
   function handleFileSelect(file: File | undefined) {
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setDeleteError('Le fichier doit être une image');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setDeleteError("L'image ne doit pas dépasser 20 Mo");
+      return;
+    }
+    setDeleteError(null);
     setUploading(true);
     const url = URL.createObjectURL(file);
     setPendingPreview(url);
@@ -126,23 +147,14 @@ export default function App() {
     );
     if (!confirmed) return;
 
-    const { error: deleteError } = await supabase.from('photos').delete().eq('id', id);
+    const { error: deleteErr } = await supabase.from('photos').delete().eq('id', id);
 
-    if (deleteError) {
-      setDeleteError(`Erreur lors de la suppression: ${deleteError.message}`);
+    if (deleteErr) {
+      setDeleteError(`Erreur lors de la suppression: ${deleteErr.message}`);
       return;
     }
 
-    // Robust path extraction from Supabase public URL
-    const publicPrefix = '/storage/v1/object/public/photos/';
-    let filePath: string | null = null;
-    const idx = photo.storage_url.indexOf(publicPrefix);
-    if (idx >= 0) {
-      filePath = photo.storage_url.slice(idx + publicPrefix.length);
-    } else {
-      const parts = photo.storage_url.split('/photos/');
-      filePath = parts.length > 1 ? parts[parts.length - 1] : null;
-    }
+    const filePath = extractStoragePath(photo.storage_url);
     if (filePath) {
       const { error: storageError } = await supabase.storage.from('photos').remove([filePath]);
       if (storageError) {
@@ -151,6 +163,37 @@ export default function App() {
     }
 
     setPhotos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Voulez-vous vraiment supprimer ${ids.length} photo${ids.length > 1 ? 's' : ''} ? Cette action est irréversible.`
+    );
+    if (!confirmed) return;
+
+    const toDelete = photos.filter((p) => selectedIds.has(p.id));
+    const { error: deleteErr } = await supabase.from('photos').delete().in('id', ids);
+
+    if (deleteErr) {
+      setDeleteError(`Erreur lors de la suppression: ${deleteErr.message}`);
+      return;
+    }
+
+    const paths = toDelete
+      .map((p) => extractStoragePath(p.storage_url))
+      .filter((p): p is string => Boolean(p));
+    if (paths.length > 0) {
+      const { error: storageError } = await supabase.storage.from('photos').remove(paths);
+      if (storageError) {
+        console.warn('Storage bulk remove failed after DB delete:', storageError.message);
+      }
+    }
+
+    setPhotos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+    exitSelectionMode();
   }
 
   function handleOverlayUpdated(updatedPhoto: Photo) {
@@ -384,6 +427,12 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap"
               >
                 <FileDown size={14} /> Export PDF
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-all whitespace-nowrap"
+              >
+                <Trash2 size={14} /> Supprimer
               </button>
             </div>
           </div>
