@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, type Story, type Photo } from '../services/supabaseClient';
 import StoryCarousel from './StoryCarousel';
-import { BookOpen, Plus, X, Loader2, Images, Calendar } from 'lucide-react';
+import { BookOpen, Plus, X, Loader2, Images, Calendar, Trash2 } from 'lucide-react';
 import { formatDateLong } from '../utils/date';
 
 type StoriesViewProps = {
@@ -14,6 +14,7 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
   const [creating, setCreating] = useState(false);
   const [activeStory, setActiveStory] = useState<{ story: Story; photos: Photo[] } | null>(null);
   const [storyDataMap, setStoryDataMap] = useState<Map<string, { count: number; thumbnailUrl: string | null }>>(new Map());
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchStories = useCallback(async () => {
     setLoading(true);
@@ -68,6 +69,7 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
   }, [fetchStories]);
 
   async function openStory(story: Story) {
+    setActionError(null);
     const { data, error } = await supabase
       .from('photo_stories')
       .select('photos(*)')
@@ -76,13 +78,17 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
 
     if (error) {
       console.error('Error fetching story photos:', error);
+      setActionError(`Impossible d'ouvrir la story: ${error.message}`);
       return;
     }
 
     const photos = (data || []).map((d: { photos: Photo | Photo[] }) => {
       return Array.isArray(d.photos) ? d.photos[0] : d.photos;
     }).filter(Boolean) as Photo[];
-    if (photos.length === 0) return;
+    if (photos.length === 0) {
+      setActionError('Cette story ne contient aucune photo. Ajoutez-en depuis l\'onglet Photos.');
+      return;
+    }
 
     if (onOpenCarousel) {
       onOpenCarousel(story, photos);
@@ -91,8 +97,39 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
     }
   }
 
+  async function handleDeleteStory(story: Story) {
+    const confirmed = window.confirm(
+      `Supprimer la story "${story.title}" ? Les photos ne seront pas supprimées, seulement le regroupement.`
+    );
+    if (!confirmed) return;
+
+    setActionError(null);
+    const { error } = await supabase.from('stories').delete().eq('id', story.id);
+    if (error) {
+      setActionError(`Erreur lors de la suppression: ${error.message}`);
+      return;
+    }
+    setStories((prev) => prev.filter((s) => s.id !== story.id));
+    setStoryDataMap((prev) => {
+      const next = new Map(prev);
+      next.delete(story.id);
+      return next;
+    });
+  }
+
   return (
     <div>
+      {actionError && (
+        <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between gap-3 animate-fadeIn">
+          <p className="text-sm text-red-400">{actionError}</p>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-400 hover:text-red-300 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <Loader2 className="animate-spin text-neutral-600" size={32} />
@@ -129,12 +166,13 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
             {stories.map((story) => {
               const storyData = storyDataMap.get(story.id) || { count: 0, thumbnailUrl: null };
               return (
-                <StoryCard 
-                  key={story.id} 
-                  story={story} 
+                <StoryCard
+                  key={story.id}
+                  story={story}
                   photoCount={storyData.count}
                   thumbnail={storyData.thumbnailUrl}
-                  onOpen={() => openStory(story)} 
+                  onOpen={() => openStory(story)}
+                  onDelete={() => handleDeleteStory(story)}
                 />
               );
             })}
@@ -164,11 +202,18 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
   );
 }
 
-function StoryCard({ story, photoCount, thumbnail, onOpen }: { 
-  story: Story; 
-  photoCount: number; 
+function StoryCard({
+  story,
+  photoCount,
+  thumbnail,
+  onOpen,
+  onDelete,
+}: {
+  story: Story;
+  photoCount: number;
   thumbnail: string | null;
-  onOpen: () => void 
+  onOpen: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div
@@ -189,6 +234,17 @@ function StoryCard({ story, photoCount, thumbnail, onOpen }: {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute top-2 right-2 p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-red-400 hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100"
+          title="Supprimer la story"
+        >
+          <Trash2 size={16} />
+        </button>
         <div className="absolute bottom-3 left-3 right-3">
           <h3 className="text-white font-semibold text-base leading-snug">{story.title}</h3>
           {story.description && (

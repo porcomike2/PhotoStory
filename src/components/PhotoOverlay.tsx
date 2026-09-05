@@ -111,7 +111,7 @@ export default function PhotoOverlay({ photo, onClose, onUpdated }: PhotoOverlay
           )}
 
           {!photo.story && !photo.location && (
-            <p className="text-sm text-neutral-600 italic">Aucun detail supplementaire.</p>
+            <p className="text-sm text-neutral-600 italic">Aucun détail supplémentaire.</p>
           )}
         </div>
       </div>
@@ -132,14 +132,14 @@ function ZoomControls() {
       <button
         onClick={() => zoomOut()}
         className="p-2 text-neutral-300 hover:text-white rounded-lg transition-all"
-        title="Dezoomer"
+        title="Dézoomer"
       >
         <ZoomOut size={18} />
       </button>
       <button
         onClick={() => resetTransform()}
         className="p-2 text-neutral-300 hover:text-white rounded-lg transition-all"
-        title="Reinitialiser"
+        title="Réinitialiser"
       >
         <Maximize size={18} />
       </button>
