@@ -122,7 +122,7 @@ export default function App() {
     if (!photo) return;
 
     const confirmed = window.confirm(
-      `Voulez-vous vraiment supprimer "${photo.title}" ? Cette action est irreversible.`
+      `Voulez-vous vraiment supprimer "${photo.title}" ? Cette action est irréversible.`
     );
     if (!confirmed) return;
 
@@ -133,9 +133,21 @@ export default function App() {
       return;
     }
 
-    const filePath = photo.storage_url.split('/photos/')[1];
+    // Robust path extraction from Supabase public URL
+    const publicPrefix = '/storage/v1/object/public/photos/';
+    let filePath: string | null = null;
+    const idx = photo.storage_url.indexOf(publicPrefix);
+    if (idx >= 0) {
+      filePath = photo.storage_url.slice(idx + publicPrefix.length);
+    } else {
+      const parts = photo.storage_url.split('/photos/');
+      filePath = parts.length > 1 ? parts[parts.length - 1] : null;
+    }
     if (filePath) {
-      await supabase.storage.from('photos').remove([filePath]);
+      const { error: storageError } = await supabase.storage.from('photos').remove([filePath]);
+      if (storageError) {
+        console.warn('Storage remove failed after DB delete:', storageError.message);
+      }
     }
 
     setPhotos((prev) => prev.filter((p) => p.id !== id));
@@ -262,7 +274,7 @@ export default function App() {
                 className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
               >
                 <LogOut size={18} />
-                <span className="hidden sm:inline">Deconnexion</span>
+                <span className="hidden sm:inline">Déconnexion</span>
               </button>
             </div>
           </div>
@@ -328,7 +340,7 @@ export default function App() {
                   onClick={() => setSelectionMode(true)}
                   disabled={photos.length === 0}
                   className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-neutral-300 hover:text-white bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                  title="Mode selection"
+                  title="Mode sélection"
                 >
                   <CheckSquare size={18} />
                   <span className="hidden sm:inline">Selectionner</span>
@@ -352,20 +364,20 @@ export default function App() {
         <div className="sticky top-[73px] sm:top-[81px] z-20 bg-neutral-900/95 backdrop-blur-xl border-b border-neutral-800 animate-fadeIn">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
             <span className="text-sm text-neutral-300">
-              {selectedIds.size} selectionnee{selectedIds.size > 1 ? 's' : ''}
+              {selectedIds.size} sélectionnée{selectedIds.size > 1 ? 's' : ''}
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSelectAll}
                 className="px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap"
               >
-                {selectedIds.size === filteredPhotos.length ? 'Tout deselect.' : 'Tout selectionner'}
+                {selectedIds.size === filteredPhotos.length ? 'Tout désélectionner' : 'Tout sélectionner'}
               </button>
               <button
                 onClick={() => setAddToStoryOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-black bg-white rounded-lg font-medium hover:bg-neutral-200 transition-all whitespace-nowrap"
               >
-                <BookOpen size={14} /> Ajouter a une story
+                <BookOpen size={14} /> Ajouter à une story
               </button>
               <button
                 onClick={() => setPdfExportOpen(true)}
@@ -517,7 +529,7 @@ function EmptyState({ onUpload, onCapture }: { onUpload: () => void; onCapture: 
       </div>
       <h2 className="text-xl font-semibold text-white mb-2">Aucun souvenir pour l'instant</h2>
       <p className="text-neutral-500 max-w-sm mb-6">
-        Commencez a documenter votre vie en important ou capturant votre premiere photo.
+        Commencez à documenter votre vie en important ou capturant votre première photo.
       </p>
       <div className="flex gap-3">
         <button
@@ -556,7 +568,7 @@ function TimelineView({ photos, onDelete, onOpen, selectionMode, selectedIds, on
           const isSelected = selectedIds.has(photo.id);
           return (
             <div key={photo.id} className="relative pl-12 sm:pl-16">
-              <div className={`absolute left-3 sm:left-5 top-2 w-3 h-3 rounded-full ring-4 ring-neutral-950 ${isSelected ? 'bg-white' : 'bg-white'}`} />
+              <div className={`absolute left-3 sm:left-5 top-2 w-3 h-3 rounded-full ring-4 ring-neutral-950 ${isSelected ? 'bg-white' : 'bg-neutral-500'}`} />
 
               <div className={`group relative bg-neutral-900 rounded-2xl overflow-hidden border transition-all duration-300 ${isSelected ? 'border-white ring-2 ring-white/30' : 'border-neutral-800 hover:border-neutral-700'}`}>
                 <div className="flex flex-col sm:flex-row">
