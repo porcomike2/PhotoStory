@@ -43,16 +43,21 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
     try {
       const { data: existing } = await supabase
         .from('photo_stories')
-        .select('photo_id')
+        .select('photo_id, position')
         .eq('story_id', selectedStory);
 
       const existingIds = new Set((existing || []).map((d: { photo_id: string }) => d.photo_id));
+      const maxPosition =
+        existing && existing.length > 0
+          ? Math.max(...existing.map((d: { position: number }) => d.position ?? 0))
+          : -1;
+
       const toInsert = photoIds
         .filter((id) => !existingIds.has(id))
         .map((id, i) => ({
           story_id: selectedStory,
           photo_id: id,
-          position: (existing?.length ?? 0) + i,
+          position: maxPosition + 1 + i,
         }));
 
       if (toInsert.length > 0) {
@@ -117,7 +122,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
       <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-neutral-900 rounded-2xl border border-neutral-800 shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-neutral-800 sticky top-0 bg-neutral-900 z-10">
           <h2 className="text-lg font-semibold text-white">
-            Ajouter {photoIds.length} photo{photoIds.length > 1 ? 's' : ''} a une story
+            Ajouter {photoIds.length} photo{photoIds.length > 1 ? 's' : ''} à une story
           </h2>
           <button
             onClick={onClose}
@@ -176,7 +181,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                  Creer et ajouter
+                  Créer et ajouter
                 </button>
               </div>
             </div>
@@ -187,7 +192,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
                 onClick={() => setCreating(true)}
                 className="flex items-center gap-2 mx-auto px-4 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition-all"
               >
-                <Plus size={18} /> Creer une story
+                <Plus size={18} /> Créer une story
               </button>
             </div>
           ) : (
@@ -218,7 +223,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
                 onClick={() => setCreating(true)}
                 className="w-full flex items-center gap-2 px-4 py-3 border border-dashed border-neutral-700 rounded-xl text-sm text-neutral-400 hover:text-white hover:border-neutral-600 transition-all"
               >
-                <Plus size={16} /> Creer une nouvelle story
+                <Plus size={16} /> Créer une nouvelle story
               </button>
 
               {error && (
@@ -238,7 +243,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
                   </>
                 ) : (
                   <>
-                    <Check size={18} /> Ajouter a la story
+                    <Check size={18} /> Ajouter à la story
                   </>
                 )}
               </button>

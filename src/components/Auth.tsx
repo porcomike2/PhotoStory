@@ -9,15 +9,22 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [info, setInfo] = useState<string | null>(null);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setInfo(null);
 
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+        if (data.user && !data.session) {
+          setInfo('Compte créé. Vérifiez votre email pour confirmer l\'inscription, puis connectez-vous.');
+          setMode('signin');
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -83,7 +90,7 @@ export default function Auth() {
                 required
                 minLength={6}
                 className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all"
-                placeholder="Minimum 6 caracteres"
+                placeholder="Minimum 6 caractères"
                 disabled={loading}
               />
             </div>
@@ -91,6 +98,11 @@ export default function Auth() {
             {error && (
               <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
                 {error}
+              </div>
+            )}
+            {info && (
+              <div className="px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-sm text-emerald-400">
+                {info}
               </div>
             )}
 

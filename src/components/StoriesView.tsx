@@ -104,13 +104,13 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
           </div>
           <h2 className="text-xl font-semibold text-white mb-2">Aucune story pour l'instant</h2>
           <p className="text-neutral-500 max-w-sm mb-6">
-            Creez une story pour regrouper vos photos autour d'un theme ou d'un evenement.
+            Créez une story pour regrouper vos photos autour d'un thème ou d'un événement.
           </p>
           <button
             onClick={() => setCreating(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition-all"
           >
-            <Plus size={18} /> Creer une story
+            <Plus size={18} /> Créer une story
           </button>
         </div>
       ) : (
@@ -244,7 +244,7 @@ function CreateStoryModal({ onClose, onCreated }: { onClose: () => void; onCreat
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
       <div className="w-full max-w-md bg-neutral-900 rounded-2xl border border-neutral-800 shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-neutral-800">
-          <h2 className="text-lg font-semibold text-white">Creer une story</h2>
+          <h2 className="text-lg font-semibold text-white">Créer une story</h2>
           <button
             onClick={onClose}
             className="text-neutral-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-neutral-800"
@@ -292,11 +292,11 @@ function CreateStoryModal({ onClose, onCreated }: { onClose: () => void; onCreat
           >
             {loading ? (
               <>
-                <Loader2 size={18} className="animate-spin" /> Creation...
+                <Loader2 size={18} className="animate-spin" /> Création...
               </>
             ) : (
               <>
-                <Plus size={18} /> Creer la story
+                <Plus size={18} /> Créer la story
               </>
             )}
           </button>

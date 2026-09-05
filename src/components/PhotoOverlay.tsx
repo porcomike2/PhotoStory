@@ -260,7 +260,7 @@ function EditModal({ photo, onClose, onSaved }: { photo: Photo; onClose: () => v
             <textarea
               value={story}
               onChange={(e) => setStory(e.target.value)}
-              placeholder="Racontez l'histoire derriere cette photo..."
+              placeholder="Racontez l'histoire derrière cette photo..."
               rows={4}
               className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all resize-none"
               disabled={loading}

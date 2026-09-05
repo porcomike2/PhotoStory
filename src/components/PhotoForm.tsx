@@ -88,6 +88,16 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
       return;
     }
 
+    if (!file.type.startsWith('image/')) {
+      setError('Le fichier doit être une image');
+      return;
+    }
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError("L'image ne doit pas dépasser 20 Mo");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -96,16 +106,21 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        setError('Vous devez etre connecte');
+        setError('Vous devez être connecté');
         setLoading(false);
         return;
       }
 
-      const ext = file.name.split('.').pop() || 'jpg';
+      const allowed = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif'];
+      const rawExt = (file.name.split('.').pop() || '').toLowerCase();
+      const ext = allowed.includes(rawExt) ? rawExt : 'jpg';
       const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(fileName, file, { upsert: false });
+        .upload(fileName, file, {
+          upsert: false,
+          contentType: file.type || 'image/jpeg',
+        });
 
       if (uploadError) {
         setError(`Erreur d'upload: ${uploadError.message}`);
@@ -116,6 +131,7 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
       const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
       const storageUrl = urlData.publicUrl;
 
+      // datetime-local is interpreted as local time by the browser Date constructor
       const { error: insertError } = await supabase.from('photos').insert({
         storage_url: storageUrl,
         title: title.trim(),
@@ -220,7 +236,7 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
             <textarea
               value={story}
               onChange={(e) => setStory(e.target.value)}
-              placeholder="Racontez l'histoire derriere cette photo..."
+              placeholder="Racontez l'histoire derrière cette photo..."
               rows={4}
               className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all resize-none"
               disabled={loading}
