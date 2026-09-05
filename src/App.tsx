@@ -60,6 +60,7 @@ export default function App() {
   const [addToStoryOpen, setAddToStoryOpen] = useState(false);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [carouselStory, setCarouselStory] = useState<{ story: Story; photos: Photo[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -167,33 +168,40 @@ export default function App() {
 
   async function handleBulkDelete() {
     const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
+    if (ids.length === 0 || bulkDeleting) return;
 
     const confirmed = window.confirm(
       `Voulez-vous vraiment supprimer ${ids.length} photo${ids.length > 1 ? 's' : ''} ? Cette action est irréversible.`
     );
     if (!confirmed) return;
 
-    const toDelete = photos.filter((p) => selectedIds.has(p.id));
-    const { error: deleteErr } = await supabase.from('photos').delete().in('id', ids);
+    setBulkDeleting(true);
+    setDeleteError(null);
 
-    if (deleteErr) {
-      setDeleteError(`Erreur lors de la suppression: ${deleteErr.message}`);
-      return;
-    }
+    try {
+      const toDelete = photos.filter((p) => selectedIds.has(p.id));
+      const { error: deleteErr } = await supabase.from('photos').delete().in('id', ids);
 
-    const paths = toDelete
-      .map((p) => extractStoragePath(p.storage_url))
-      .filter((p): p is string => Boolean(p));
-    if (paths.length > 0) {
-      const { error: storageError } = await supabase.storage.from('photos').remove(paths);
-      if (storageError) {
-        console.warn('Storage bulk remove failed after DB delete:', storageError.message);
+      if (deleteErr) {
+        setDeleteError(`Erreur lors de la suppression: ${deleteErr.message}`);
+        return;
       }
-    }
 
-    setPhotos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
-    exitSelectionMode();
+      const paths = toDelete
+        .map((p) => extractStoragePath(p.storage_url))
+        .filter((p): p is string => Boolean(p));
+      if (paths.length > 0) {
+        const { error: storageError } = await supabase.storage.from('photos').remove(paths);
+        if (storageError) {
+          console.warn('Storage bulk remove failed after DB delete:', storageError.message);
+        }
+      }
+
+      setPhotos((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      exitSelectionMode();
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   function handleOverlayUpdated(updatedPhoto: Photo) {
@@ -418,21 +426,25 @@ export default function App() {
               </button>
               <button
                 onClick={() => setAddToStoryOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-black bg-white rounded-lg font-medium hover:bg-neutral-200 transition-all whitespace-nowrap"
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-black bg-white rounded-lg font-medium hover:bg-neutral-200 transition-all whitespace-nowrap disabled:opacity-50"
               >
                 <BookOpen size={14} /> Ajouter à une story
               </button>
               <button
                 onClick={() => setPdfExportOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap"
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap disabled:opacity-50"
               >
                 <FileDown size={14} /> Export PDF
               </button>
               <button
                 onClick={handleBulkDelete}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-all whitespace-nowrap"
+                disabled={bulkDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Trash2 size={14} /> Supprimer
+                {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {bulkDeleting ? 'Suppression...' : 'Supprimer'}
               </button>
             </div>
           </div>
@@ -486,7 +498,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Action Buttons - moved up for better ergonomics */}
+      {/* Floating Action Buttons — only on photos tab */}
       <div className="fixed bottom-20 sm:bottom-6 right-6 flex flex-col gap-3 z-20">
         <input
           ref={cameraInputRef}
@@ -504,23 +516,27 @@ export default function App() {
           onChange={(e) => handleFileSelect(e.target.files?.[0])}
         />
 
-        <button
-          onClick={() => cameraInputRef.current?.click()}
-          disabled={uploading}
-          className="w-14 h-14 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-          title="Capturer une photo"
-        >
-          {uploading ? <Loader2 size={22} className="animate-spin" /> : <Camera size={22} />}
-        </button>
+        {tabMode === 'photos' && (
+          <>
+            <button
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={uploading}
+              className="w-14 h-14 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              title="Capturer une photo"
+            >
+              {uploading ? <Loader2 size={22} className="animate-spin" /> : <Camera size={22} />}
+            </button>
 
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-14 h-14 bg-white text-black rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-          title="Importer une photo"
-        >
-          <Upload size={22} />
-        </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-14 h-14 bg-white text-black rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              title="Importer une photo"
+            >
+              <Upload size={22} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Photo Form Modal */}
