@@ -56,6 +56,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
     const response = await fetch(url, {
       headers: {
         'Accept-Language': 'fr,en',
+        'User-Agent': 'PhotoStory/1.0 (personal photo journal app)',
       },
     });
 
