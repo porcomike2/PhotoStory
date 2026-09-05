@@ -191,7 +191,7 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Donnez un titre a ce souvenir"
+              placeholder="Donnez un titre à ce souvenir"
               className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all"
               disabled={loading}
             />
@@ -224,7 +224,7 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
             />
             {extracting && (
               <p className="text-xs text-neutral-500 flex items-center gap-1">
-                <Loader2 size={11} className="animate-spin" /> Detection du lieu...
+                <Loader2 size={11} className="animate-spin" /> Détection du lieu...
               </p>
             )}
           </div>

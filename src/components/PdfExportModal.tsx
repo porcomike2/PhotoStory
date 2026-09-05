@@ -23,6 +23,12 @@ export default function PdfExportModal({ photos, onClose }: PdfExportModalProps)
     setError(null);
 
     try {
+      if (!photos.length) {
+        setError('Aucune photo à exporter');
+        setGenerating(false);
+        return;
+      }
+
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();

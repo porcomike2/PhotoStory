@@ -6,12 +6,22 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 };
 
+const DISMISS_KEY = 'photostory-install-dismissed';
+
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DISMISS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
+    if (dismissed) return;
+
     function handler(e: Event) {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -20,7 +30,7 @@ export default function InstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
+  }, [dismissed]);
 
   async function handleInstall() {
     if (!deferredPrompt) return;
@@ -33,6 +43,11 @@ export default function InstallPrompt() {
   function handleDismiss() {
     setVisible(false);
     setDismissed(true);
+    try {
+      localStorage.setItem(DISMISS_KEY, '1');
+    } catch {
+      // ignore
+    }
   }
 
   if (!visible || dismissed) return null;
@@ -45,7 +60,7 @@ export default function InstallPrompt() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white leading-tight">Installer PhotoStory</p>
-          <p className="text-xs text-neutral-400 leading-tight">Acces rapide depuis votre ecran d'accueil</p>
+          <p className="text-xs text-neutral-400 leading-tight">Accès rapide depuis votre écran d'accueil</p>
         </div>
         <button
           onClick={handleInstall}

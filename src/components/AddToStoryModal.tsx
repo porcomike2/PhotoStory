@@ -152,7 +152,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-neutral-300">Description (optionnel)</label>
+                <label className="text-sm font-medium text-neutral-300">Description (optionnelle)</label>
                 <textarea
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}

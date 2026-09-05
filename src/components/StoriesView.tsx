@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, type Story, type Photo } from '../services/supabaseClient';
 import StoryCarousel from './StoryCarousel';
-import { BookOpen, Plus, X, Loader2, Images, Calendar, Trash2 } from 'lucide-react';
+import { BookOpen, Plus, X, Loader2, Images, Calendar, Trash2, Pencil, Save } from 'lucide-react';
 import { formatDateLong } from '../utils/date';
 
 type StoriesViewProps = {
@@ -12,12 +12,14 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [editingStory, setEditingStory] = useState<Story | null>(null);
   const [activeStory, setActiveStory] = useState<{ story: Story; photos: Photo[] } | null>(null);
   const [storyDataMap, setStoryDataMap] = useState<Map<string, { count: number; thumbnailUrl: string | null }>>(new Map());
   const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchStories = useCallback(async () => {
     setLoading(true);
+    setActionError(null);
     try {
       const { data, error } = await supabase
         .from('stories')
@@ -26,12 +28,13 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
 
       if (error) {
         console.error('Error fetching stories:', error);
+        setActionError(`Impossible de charger les stories: ${error.message}`);
       } else {
         setStories(data || []);
-        
+
         // Fetch grouped data for all stories
         if (data && data.length > 0) {
-          const storyIds = data.map(s => s.id);
+          const storyIds = data.map((s) => s.id);
           const { data: photoData } = await supabase
             .from('photo_stories')
             .select('story_id, photos(storage_url)')
@@ -42,21 +45,23 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
           photoData?.forEach((item: { story_id: string; photos: { storage_url: string } | { storage_url: string }[] }) => {
             const current = newDataMap.get(item.story_id) || { count: 0, thumbnailUrl: null };
             const photoObj = Array.isArray(item.photos) ? item.photos[0] : item.photos;
-            
+
             newDataMap.set(item.story_id, {
               count: current.count + 1,
-              thumbnailUrl: current.thumbnailUrl || photoObj?.storage_url || null
+              thumbnailUrl: current.thumbnailUrl || photoObj?.storage_url || null,
             });
           });
-          
+
           // Ensure all stories have an entry (even with 0 photos)
-          data.forEach(story => {
+          data.forEach((story) => {
             if (!newDataMap.has(story.id)) {
               newDataMap.set(story.id, { count: 0, thumbnailUrl: null });
             }
           });
-          
+
           setStoryDataMap(newDataMap);
+        } else {
+          setStoryDataMap(new Map());
         }
       }
     } finally {
@@ -172,6 +177,7 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
                   photoCount={storyData.count}
                   thumbnail={storyData.thumbnailUrl}
                   onOpen={() => openStory(story)}
+                  onEdit={() => setEditingStory(story)}
                   onDelete={() => handleDeleteStory(story)}
                 />
               );
@@ -186,6 +192,17 @@ export default function StoriesView({ onOpenCarousel }: StoriesViewProps) {
           onCreated={() => {
             setCreating(false);
             fetchStories();
+          }}
+        />
+      )}
+
+      {editingStory && (
+        <EditStoryModal
+          story={editingStory}
+          onClose={() => setEditingStory(null)}
+          onSaved={(updated) => {
+            setStories((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+            setEditingStory(null);
           }}
         />
       )}
@@ -207,12 +224,14 @@ function StoryCard({
   photoCount,
   thumbnail,
   onOpen,
+  onEdit,
   onDelete,
 }: {
   story: Story;
   photoCount: number;
   thumbnail: string | null;
   onOpen: () => void;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -234,17 +253,30 @@ function StoryCard({
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="absolute top-2 right-2 p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-red-400 hover:bg-black/80 transition-all opacity-0 group-hover:opacity-100"
-          title="Supprimer la story"
-        >
-          <Trash2 size={16} />
-        </button>
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-white hover:bg-black/80 transition-all"
+            title="Modifier la story"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-red-400 hover:bg-black/80 transition-all"
+            title="Supprimer la story"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
         <div className="absolute bottom-3 left-3 right-3">
           <h3 className="text-white font-semibold text-base leading-snug">{story.title}</h3>
           {story.description && (
@@ -324,7 +356,7 @@ function CreateStoryModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-neutral-300">Description (optionnel)</label>
+            <label className="text-sm font-medium text-neutral-300">Description (optionnelle)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -353,6 +385,121 @@ function CreateStoryModal({ onClose, onCreated }: { onClose: () => void; onCreat
             ) : (
               <>
                 <Plus size={18} /> Créer la story
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditStoryModal({
+  story,
+  onClose,
+  onSaved,
+}: {
+  story: Story;
+  onClose: () => void;
+  onSaved: (updated: Story) => void;
+}) {
+  const [title, setTitle] = useState(story.title);
+  const [description, setDescription] = useState(story.description || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!title.trim()) {
+      setError('Le titre est obligatoire');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+
+    try {
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+      };
+      const { error: updateError } = await supabase
+        .from('stories')
+        .update(payload)
+        .eq('id', story.id);
+
+      if (updateError) {
+        setError(updateError.message);
+        setLoading(false);
+        return;
+      }
+
+      onSaved({
+        ...story,
+        title: payload.title,
+        description: payload.description,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md bg-neutral-900 rounded-2xl border border-neutral-800 shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-neutral-800">
+          <h2 className="text-lg font-semibold text-white">Modifier la story</h2>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-neutral-800"
+            disabled={loading}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-neutral-300">Titre</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Nom de votre story"
+              className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-neutral-300">Description (optionnelle)</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description de la story..."
+              rows={3}
+              className="w-full px-4 py-2.5 bg-neutral-800 border border-neutral-700 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 transition-all resize-none"
+              disabled={loading}
+            />
+          </div>
+
+          {error && (
+            <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleSave}
+            disabled={loading || !title.trim()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-black rounded-xl font-medium hover:bg-neutral-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" /> Enregistrement...
+              </>
+            ) : (
+              <>
+                <Save size={18} /> Enregistrer
               </>
             )}
           </button>
