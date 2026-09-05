@@ -1,26 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Camera,
-  Upload,
-  Grid3x3,
-  List,
-  Search,
-  Download,
-  LogOut,
-  Loader2,
-  Image as ImageIcon,
-  Calendar,
-  MapPin,
-  FileText,
-  CheckSquare,
-  X,
-  BookOpen,
-  Images,
-  FileDown,
-  Trash2,
-} from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { supabase, type Photo, type Story } from './services/supabaseClient';
-import { formatDateLong } from './utils/date';
+import { extractStoragePath } from './utils/storagePath';
 import Auth from './components/Auth';
 import PhotoForm from './components/PhotoForm';
 import PhotoCard from './components/PhotoCard';
@@ -30,19 +11,11 @@ import StoriesView from './components/StoriesView';
 import StoryCarousel from './components/StoryCarousel';
 import AddToStoryModal from './components/AddToStoryModal';
 import PdfExportModal from './components/PdfExportModal';
-
-type ViewMode = 'grid' | 'timeline';
-type TabMode = 'photos' | 'stories';
-
-function extractStoragePath(storageUrl: string): string | null {
-  const publicPrefix = '/storage/v1/object/public/photos/';
-  const idx = storageUrl.indexOf(publicPrefix);
-  if (idx >= 0) {
-    return storageUrl.slice(idx + publicPrefix.length);
-  }
-  const parts = storageUrl.split('/photos/');
-  return parts.length > 1 ? parts[parts.length - 1] : null;
-}
+import EmptyState from './components/EmptyState';
+import TimelineView from './components/TimelineView';
+import AppHeader, { type ViewMode, type TabMode } from './components/AppHeader';
+import BulkActionsBar from './components/BulkActionsBar';
+import FloatingActions from './components/FloatingActions';
 
 export default function App() {
   const [session, setSession] = useState<boolean | null>(null);
@@ -166,6 +139,11 @@ export default function App() {
     setPhotos((prev) => prev.filter((p) => p.id !== id));
   }
 
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }
+
   async function handleBulkDelete() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkDeleting) return;
@@ -229,11 +207,6 @@ export default function App() {
     }
   }
 
-  function exitSelectionMode() {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  }
-
   function handleExport() {
     const exportData = photos.map((p) => ({
       id: p.id,
@@ -273,6 +246,11 @@ export default function App() {
     }
   }
 
+  function handleTabChange(tab: TabMode) {
+    setTabMode(tab);
+    exitSelectionMode();
+  }
+
   const filteredPhotos = photos.filter((p) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -299,159 +277,33 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-neutral-950/80 backdrop-blur-xl border-b border-neutral-800/50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center">
-                <Camera size={20} className="text-black" />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight">PhotoStory</h1>
-            </div>
+      <AppHeader
+        tabMode={tabMode}
+        viewMode={viewMode}
+        search={search}
+        selectionMode={selectionMode}
+        photosCount={photos.length}
+        onTabChange={handleTabChange}
+        onViewModeChange={setViewMode}
+        onSearchChange={setSearch}
+        onEnterSelectionMode={() => setSelectionMode(true)}
+        onExitSelectionMode={exitSelectionMode}
+        onExport={handleExport}
+        onSignOut={handleSignOut}
+      />
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExport}
-                disabled={photos.length === 0}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Exporter mes souvenirs (JSON)"
-              >
-                <Download size={18} />
-                <span className="hidden sm:inline">Exporter</span>
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
-              >
-                <LogOut size={18} />
-                <span className="hidden sm:inline">Déconnexion</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Tab selector */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl">
-              <button
-                onClick={() => { setTabMode('photos'); exitSelectionMode(); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  tabMode === 'photos' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                <Images size={16} /> Toutes les photos
-              </button>
-              <button
-                onClick={() => { setTabMode('stories'); exitSelectionMode(); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  tabMode === 'stories' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                <BookOpen size={16} /> Stories
-              </button>
-            </div>
-          </div>
-
-          {tabMode === 'photos' && (
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Rechercher par titre, lieu, ou histoire..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-600 transition-all"
-                />
-              </div>
-
-              <div className="flex gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-xl">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-all ${
-                    viewMode === 'grid' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
-                  }`}
-                  title="Vue grille"
-                >
-                  <Grid3x3 size={18} />
-                </button>
-                <button
-                  onClick={() => setViewMode('timeline')}
-                  className={`p-2 rounded-lg transition-all ${
-                    viewMode === 'timeline' ? 'bg-white text-black' : 'text-neutral-400 hover:text-white'
-                  }`}
-                  title="Vue timeline"
-                >
-                  <List size={18} />
-                </button>
-              </div>
-
-              {!selectionMode ? (
-                <button
-                  onClick={() => setSelectionMode(true)}
-                  disabled={photos.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-neutral-300 hover:text-white bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                  title="Mode sélection"
-                >
-                  <CheckSquare size={18} />
-                  <span className="hidden sm:inline">Selectionner</span>
-                </button>
-              ) : (
-                <button
-                  onClick={exitSelectionMode}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-neutral-300 hover:text-white bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 rounded-xl transition-all whitespace-nowrap"
-                >
-                  <X size={18} />
-                  <span className="hidden sm:inline">Annuler</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Bulk actions bar */}
-      {selectionMode && selectedIds.size > 0 && (
-        <div className="sticky top-[73px] sm:top-[81px] z-20 bg-neutral-900/95 backdrop-blur-xl border-b border-neutral-800 animate-fadeIn">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
-            <span className="text-sm text-neutral-300">
-              {selectedIds.size} sélectionnée{selectedIds.size > 1 ? 's' : ''}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSelectAll}
-                className="px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap"
-              >
-                {selectedIds.size === filteredPhotos.length ? 'Tout désélectionner' : 'Tout sélectionner'}
-              </button>
-              <button
-                onClick={() => setAddToStoryOpen(true)}
-                disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-black bg-white rounded-lg font-medium hover:bg-neutral-200 transition-all whitespace-nowrap disabled:opacity-50"
-              >
-                <BookOpen size={14} /> Ajouter à une story
-              </button>
-              <button
-                onClick={() => setPdfExportOpen(true)}
-                disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all whitespace-nowrap disabled:opacity-50"
-              >
-                <FileDown size={14} /> Export PDF
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {bulkDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                {bulkDeleting ? 'Suppression...' : 'Supprimer'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {selectionMode && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          filteredCount={filteredPhotos.length}
+          bulkDeleting={bulkDeleting}
+          onSelectAll={handleSelectAll}
+          onAddToStory={() => setAddToStoryOpen(true)}
+          onExportPdf={() => setPdfExportOpen(true)}
+          onBulkDelete={handleBulkDelete}
+        />
       )}
 
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         {deleteError && (
           <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between gap-3 animate-fadeIn">
@@ -465,13 +317,18 @@ export default function App() {
           </div>
         )}
         {tabMode === 'stories' ? (
-          <StoriesView onOpenCarousel={(story, storyPhotos) => setCarouselStory({ story, photos: storyPhotos })} />
+          <StoriesView
+            onOpenCarousel={(story, storyPhotos) => setCarouselStory({ story, photos: storyPhotos })}
+          />
         ) : loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="animate-spin text-neutral-600" size={32} />
           </div>
         ) : filteredPhotos.length === 0 ? (
-          <EmptyState onUpload={() => fileInputRef.current?.click()} onCapture={() => cameraInputRef.current?.click()} />
+          <EmptyState
+            onUpload={() => fileInputRef.current?.click()}
+            onCapture={() => cameraInputRef.current?.click()}
+          />
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredPhotos.map((photo) => (
@@ -498,53 +355,23 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Action Buttons — only on photos tab */}
-      <div className="fixed bottom-20 sm:bottom-6 right-6 flex flex-col gap-3 z-20">
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => handleFileSelect(e.target.files?.[0])}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleFileSelect(e.target.files?.[0])}
-        />
+      <FloatingActions
+        visible={tabMode === 'photos'}
+        uploading={uploading}
+        fileInputRef={fileInputRef}
+        cameraInputRef={cameraInputRef}
+        onFileSelect={handleFileSelect}
+      />
 
-        {tabMode === 'photos' && (
-          <>
-            <button
-              onClick={() => cameraInputRef.current?.click()}
-              disabled={uploading}
-              className="w-14 h-14 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-              title="Capturer une photo"
-            >
-              {uploading ? <Loader2 size={22} className="animate-spin" /> : <Camera size={22} />}
-            </button>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="w-14 h-14 bg-white text-black rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-              title="Importer une photo"
-            >
-              <Upload size={22} />
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Photo Form Modal */}
       {pendingFile && pendingPreview && (
-        <PhotoForm file={pendingFile} previewUrl={pendingPreview} onClose={handleFormClose} onSaved={handleFormSaved} />
+        <PhotoForm
+          file={pendingFile}
+          previewUrl={pendingPreview}
+          onClose={handleFormClose}
+          onSaved={handleFormSaved}
+        />
       )}
 
-      {/* Photo Overlay (zoom + detail + edit) */}
       {overlayPhoto && (
         <PhotoOverlay
           photo={overlayPhoto}
@@ -553,7 +380,6 @@ export default function App() {
         />
       )}
 
-      {/* Story Carousel */}
       {carouselStory && (
         <StoryCarousel
           photos={carouselStory.photos}
@@ -563,7 +389,6 @@ export default function App() {
         />
       )}
 
-      {/* Add to Story Modal */}
       {addToStoryOpen && (
         <AddToStoryModal
           photoIds={Array.from(selectedIds)}
@@ -575,127 +400,11 @@ export default function App() {
         />
       )}
 
-      {/* PDF Export Modal */}
       {pdfExportOpen && (
         <PdfExportModal photos={selectedPhotos} onClose={() => setPdfExportOpen(false)} />
       )}
 
-      {/* PWA Install Prompt */}
       <InstallPrompt />
     </div>
   );
 }
-
-function EmptyState({ onUpload, onCapture }: { onUpload: () => void; onCapture: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="w-20 h-20 bg-neutral-900 border border-neutral-800 rounded-3xl flex items-center justify-center mb-5">
-        <ImageIcon size={36} className="text-neutral-600" />
-      </div>
-      <h2 className="text-xl font-semibold text-white mb-2">Aucun souvenir pour l'instant</h2>
-      <p className="text-neutral-500 max-w-sm mb-6">
-        Commencez à documenter votre vie en important ou capturant votre première photo.
-      </p>
-      <div className="flex gap-3">
-        <button
-          onClick={onCapture}
-          className="flex items-center gap-2 px-4 py-2.5 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-white hover:bg-neutral-800 transition-all"
-        >
-          <Camera size={18} /> Capturer
-        </button>
-        <button
-          onClick={onUpload}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white text-black rounded-xl text-sm font-medium hover:bg-neutral-200 transition-all"
-        >
-          <Upload size={18} /> Importer
-        </button>
-      </div>
-    </div>
-  );
-}
-
-type TimelineViewProps = {
-  photos: Photo[];
-  onDelete: (id: string) => void;
-  onOpen: (photo: Photo) => void;
-  selectionMode?: boolean;
-  selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
-};
-
-function TimelineView({ photos, onDelete, onOpen, selectionMode, selectedIds, onToggleSelect }: TimelineViewProps) {
-  return (
-    <div className="relative">
-      <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-px bg-neutral-800" />
-
-      <div className="space-y-8">
-        {photos.map((photo) => {
-          const isSelected = selectedIds.has(photo.id);
-          return (
-            <div key={photo.id} className="relative pl-12 sm:pl-16">
-              <div className={`absolute left-3 sm:left-5 top-2 w-3 h-3 rounded-full ring-4 ring-neutral-950 ${isSelected ? 'bg-white' : 'bg-neutral-500'}`} />
-
-              <div className={`group relative bg-neutral-900 rounded-2xl overflow-hidden border transition-all duration-300 ${isSelected ? 'border-white ring-2 ring-white/30' : 'border-neutral-800 hover:border-neutral-700'}`}>
-                <div className="flex flex-col sm:flex-row">
-                  <div
-                    className="relative sm:w-56 h-40 sm:h-auto shrink-0 overflow-hidden bg-neutral-800"
-                    onClick={() => (selectionMode ? onToggleSelect(photo.id) : onOpen?.(photo))}
-                    style={{ cursor: selectionMode ? 'pointer' : 'zoom-in' }}
-                  >
-                    <img
-                      src={photo.storage_url}
-                      alt={photo.title}
-                      loading="lazy"
-                      className={`w-full h-full object-cover ${isSelected ? 'opacity-70' : ''}`}
-                    />
-
-                    {selectionMode && (
-                      <div className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-white border-white' : 'bg-black/50 border-white/70 backdrop-blur-sm'}`}>
-                        {isSelected && <CheckSquare size={14} className="text-black" />}
-                      </div>
-                    )}
-
-                    {!selectionMode && onDelete && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(photo.id); }}
-                        className="absolute top-2 right-2 p-2 bg-black/60 backdrop-blur-sm rounded-lg text-neutral-300 hover:text-red-400 transition-all sm:opacity-0 group-hover:opacity-100"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex-1 p-5 space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-neutral-500 uppercase tracking-wide font-medium">
-                      <Calendar size={13} />
-                      {formatDateLong(photo.photo_date)}
-                    </div>
-
-                    <h3 className="text-lg font-semibold text-white leading-snug">{photo.title}</h3>
-
-                    {photo.location && (
-                      <div className="flex items-center gap-1.5 text-sm text-neutral-400">
-                        <MapPin size={14} className="shrink-0" />
-                        <span className="line-clamp-1">{photo.location}</span>
-                      </div>
-                    )}
-
-                    {photo.story && (
-                      <div className="flex items-start gap-1.5 text-sm text-neutral-500 leading-relaxed pt-1">
-                        <FileText size={14} className="shrink-0 mt-0.5" />
-                        <p className="line-clamp-4">{photo.story}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
