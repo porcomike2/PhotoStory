@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, X, Calendar, MapPin, FileText } from 'lucide-react';
 import type { Photo } from '../services/supabaseClient';
 import { formatDateLongWithTime } from '../utils/date';
@@ -13,6 +13,7 @@ type StoryCarouselProps = {
 export default function StoryCarousel({ photos, storyTitle, storyDescription, onClose }: StoryCarouselProps) {
   const [index, setIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(true);
+  const touchStartX = useRef<number | null>(null);
 
   const next = useCallback(() => {
     setIndex((i) => (i + 1) % photos.length);
@@ -31,6 +32,21 @@ export default function StoryCarousel({ photos, storyTitle, storyDescription, on
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [next, prev, onClose]);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.changedTouches[0]?.clientX ?? null;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null || photos.length <= 1) return;
+    const endX = e.changedTouches[0]?.clientX;
+    if (endX === undefined) return;
+    const delta = endX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) < 50) return;
+    if (delta < 0) next();
+    else prev();
+  }
 
   if (photos.length === 0) return null;
 
@@ -60,7 +76,11 @@ export default function StoryCarousel({ photos, storyTitle, storyDescription, on
       </div>
 
       {/* Carousel area */}
-      <div className="flex-1 min-h-0 flex items-center justify-center relative px-4">
+      <div
+        className="flex-1 min-h-0 flex items-center justify-center relative px-4 touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <button
           onClick={prev}
           disabled={photos.length <= 1}

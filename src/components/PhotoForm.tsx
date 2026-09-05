@@ -78,6 +78,14 @@ export default function PhotoForm({ file, previewUrl, onClose, onSaved }: PhotoF
     };
   }, [file]);
 
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !loading) onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [loading, onClose]);
+
   async function handleSave() {
     if (!title.trim()) {
       setError('Le titre est obligatoire');

@@ -1,4 +1,5 @@
-import { MapPin, Calendar, Trash2, Check } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, Calendar, Trash2, Check, ImageOff } from 'lucide-react';
 import type { Photo } from '../services/supabaseClient';
 import { formatDateLong } from '../utils/date';
 
@@ -12,6 +13,8 @@ type PhotoCardProps = {
 };
 
 export default function PhotoCard({ photo, onDelete, onOpen, selectionMode, selected, onToggleSelect }: PhotoCardProps) {
+  const [imgError, setImgError] = useState(false);
+
   return (
     <div
       className={`group relative bg-neutral-900 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:shadow-black/40 ${
@@ -23,14 +26,22 @@ export default function PhotoCard({ photo, onDelete, onOpen, selectionMode, sele
         onClick={() => (selectionMode ? onToggleSelect?.(photo.id) : onOpen?.(photo))}
         style={{ cursor: selectionMode ? 'pointer' : 'zoom-in' }}
       >
-        <img
-          src={photo.storage_url}
-          alt={photo.title}
-          loading="lazy"
-          className={`w-full h-full object-cover transition-transform duration-500 ${
-            selectionMode ? 'group-hover:scale-100' : 'group-hover:scale-105'
-          } ${selected ? 'opacity-70' : ''}`}
-        />
+        {imgError ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-neutral-600">
+            <ImageOff size={28} />
+            <span className="text-xs">Image indisponible</span>
+          </div>
+        ) : (
+          <img
+            src={photo.storage_url}
+            alt={photo.title}
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className={`w-full h-full object-cover transition-transform duration-500 ${
+              selectionMode ? 'group-hover:scale-100' : 'group-hover:scale-105'
+            } ${selected ? 'opacity-70' : ''}`}
+          />
+        )}
 
         {selectionMode && (
           <div className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${selected ? 'bg-white border-white' : 'bg-black/50 border-white/70 backdrop-blur-sm'}`}>

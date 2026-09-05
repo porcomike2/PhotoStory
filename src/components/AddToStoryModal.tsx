@@ -27,6 +27,7 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
 
       if (error) {
         console.error(error);
+        setError(`Impossible de charger les stories: ${error.message}`);
       } else {
         setStories(data || []);
       }
@@ -34,6 +35,14 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
     }
     fetchStories();
   }, []);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !saving) onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [saving, onClose]);
 
   async function handleAdd() {
     if (!selectedStory) return;
@@ -60,13 +69,17 @@ export default function AddToStoryModal({ photoIds, onClose, onAdded }: AddToSto
           position: maxPosition + 1 + i,
         }));
 
-      if (toInsert.length > 0) {
-        const { error: insertError } = await supabase.from('photo_stories').insert(toInsert);
-        if (insertError) {
-          setError(insertError.message);
-          setSaving(false);
-          return;
-        }
+      if (toInsert.length === 0) {
+        setError('Toutes ces photos sont déjà dans cette story');
+        setSaving(false);
+        return;
+      }
+
+      const { error: insertError } = await supabase.from('photo_stories').insert(toInsert);
+      if (insertError) {
+        setError(insertError.message);
+        setSaving(false);
+        return;
       }
 
       onAdded();
